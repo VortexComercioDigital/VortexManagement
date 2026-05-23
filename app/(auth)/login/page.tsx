@@ -39,7 +39,7 @@ export default function LoginPage() {
             A
           </div>
           <h1 className="text-2xl font-bold text-slate-900">AgênciaCRM</h1>
-          <p className="text-slate-500 mt-1">Gestão de prospecção digital</p>
+          <p className="text-slate-500 mt-1">Gestão de prospecção de clientes</p>
         </div>
 
         <Card>
