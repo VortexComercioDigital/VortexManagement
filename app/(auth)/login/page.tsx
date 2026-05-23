@@ -35,11 +35,11 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-      <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-600 text-white font-bold text-xl mb-4">
-          V
-        </div>
-          <h1 className="text-2xl font-bold text-slate-900">Vortex Comercio Digital</h1>
-          <p className="text-slate-500 mt-1">Gestão de prospecção digital</p>
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-500 text-white font-bold text-xl mb-4">
+            A
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900">AgênciaCRM</h1>
+          <p className="text-slate-500 mt-1">Gestão de prospecção de clientes</p>
         </div>
 
         <Card>
