@@ -3,10 +3,9 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth-store';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -25,41 +24,59 @@ import {
 import { Search, Building2, Mail, Phone } from 'lucide-react';
 import { NewLeadDialog } from '@/components/leads/new-lead-dialog';
 import { LeadDetailModal } from '@/components/leads/lead-detail-modal';
-import type { Lead, Profile, KanbanStage } from '@/types/database';
+import type { Lead, Profile, Stage } from '@/types/database';
 
+/**
+ * Leads List Page
+ *
+ * Security: Uses read-only client queries for displaying data.
+ * All mutations go through Server Actions via child components.
+ */
 export default function LeadsPage() {
   const { profile } = useAuthStore();
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [stages, setStages] = useState<KanbanStage[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
   const [vendedores, setVendedores] = useState<Profile[]>([]);
   const [search, setSearch] = useState('');
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState('all');
 
+  // Read-only query for leads
   const fetchLeads = async () => {
     let query = supabase
       .from('leads')
-      .select('*, kanban_stages(*), profiles!leads_vendedor_id_fkey(*)')
+      .select('*, stages(*), profiles!leads_vendedor_id_fkey(*)')
       .order('created_at', { ascending: false });
 
     if (profile?.role === 'vendedor') {
       query = query.eq('vendedor_id', profile.id);
     }
-    // admin and dev see all leads
 
     const { data } = await query;
     if (data) setLeads(data as unknown as Lead[]);
   };
 
   useEffect(() => {
+    if (!profile) return;
     fetchLeads();
-    supabase.from('kanban_stages').select('*').order('position').then(({ data }) => {
-      if (data) setStages(data as KanbanStage[]);
-    });
-    if (profile?.role === 'admin' || profile?.role === 'dev') {
-      supabase.from('profiles').select('*').order('full_name').then(({ data }) => {
-        if (data) setVendedores(data as Profile[]);
+
+    // Read-only queries for filters
+    supabase
+      .from('stages')
+      .select('*')
+      .order('order')
+      .then(({ data }) => {
+        if (data) setStages(data);
       });
+
+    if (profile.role === 'admin' || profile.role === 'dev') {
+      supabase
+        .from('profiles')
+        .select('*')
+        .order('name')
+        .then(({ data }) => {
+          if (data) setVendedores(data);
+        });
     }
   }, [profile]);
 
@@ -68,9 +85,9 @@ export default function LeadsPage() {
     if (search) {
       const s = search.toLowerCase();
       return (
-        lead.name.toLowerCase().includes(s) ||
-        lead.company.toLowerCase().includes(s) ||
-        lead.email.toLowerCase().includes(s)
+        (lead.name && lead.name.toLowerCase().includes(s)) ||
+        (lead.company && lead.company.toLowerCase().includes(s)) ||
+        (lead.email && lead.email.toLowerCase().includes(s))
       );
     }
     return true;
@@ -78,12 +95,16 @@ export default function LeadsPage() {
 
   const selectedLead = leads.find((l) => l.id === selectedLeadId);
 
+  if (!profile) return null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Clientes</h1>
-          <p className="text-sm text-slate-500">Lista completa de leads e clientes</p>
+          <p className="text-sm text-slate-500">
+            Lista completa de leads e clientes
+          </p>
         </div>
         <NewLeadDialog onCreated={fetchLeads} />
       </div>
@@ -106,7 +127,7 @@ export default function LeadsPage() {
             <SelectItem value="all">Todas etapas</SelectItem>
             {stages.map((s) => (
               <SelectItem key={s.id} value={s.id}>
-                {s.name}
+                {s.name || 'Sem nome'}
               </SelectItem>
             ))}
           </SelectContent>
@@ -123,13 +144,20 @@ export default function LeadsPage() {
                 <TableHead>Contato</TableHead>
                 <TableHead>Etapa</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
-                {(profile?.role === 'admin' || profile?.role === 'dev') && <TableHead>Vendedor</TableHead>}
+                {(profile.role === 'admin' || profile.role === 'dev') && (
+                  <TableHead>Vendedor</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredLeads.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={(profile?.role === 'admin' || profile?.role === 'dev') ? 6 : 5} className="text-center py-8 text-slate-400">
+                  <TableCell
+                    colSpan={
+                      profile.role === 'admin' || profile.role === 'dev' ? 6 : 5
+                    }
+                    className="text-center py-8 text-slate-400"
+                  >
                     Nenhum lead encontrado
                   </TableCell>
                 </TableRow>
@@ -140,7 +168,7 @@ export default function LeadsPage() {
                     className="cursor-pointer hover:bg-slate-50"
                     onClick={() => setSelectedLeadId(lead.id)}
                   >
-                    <TableCell className="font-medium">{lead.name}</TableCell>
+                    <TableCell className="font-medium">{lead.name || '-'}</TableCell>
                     <TableCell>
                       {lead.company && (
                         <div className="flex items-center gap-1">
@@ -170,23 +198,21 @@ export default function LeadsPage() {
                         <Badge
                           variant="secondary"
                           style={{
-                            backgroundColor: lead.stage.color + '20',
-                            color: lead.stage.color,
+                            backgroundColor: (lead.stage.color || '#3b82f6') + '20',
+                            color: lead.stage.color || '#3b82f6',
                           }}
                         >
-                          {lead.stage.name}
+                          {lead.stage.name || 'Sem nome'}
                         </Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {lead.value > 0
+                      {lead.value && lead.value > 0
                         ? `R$ ${lead.value.toLocaleString('pt-BR')}`
                         : '-'}
                     </TableCell>
-                    {(profile?.role === 'admin' || profile?.role === 'dev') && (
-                      <TableCell>
-                        {lead.vendedor?.full_name || '-'}
-                      </TableCell>
+                    {(profile.role === 'admin' || profile.role === 'dev') && (
+                      <TableCell>{lead.profiles?.name || '-'}</TableCell>
                     )}
                   </TableRow>
                 ))
@@ -202,6 +228,8 @@ export default function LeadsPage() {
           open={!!selectedLeadId}
           onClose={() => setSelectedLeadId(null)}
           onUpdate={fetchLeads}
+          userRole={profile.role}
+          userId={profile.id}
         />
       )}
     </div>

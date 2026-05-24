@@ -9,8 +9,8 @@ import { useAuthStore } from '@/stores/auth-store';
 export function Header() {
   const { profile } = useAuthStore();
 
-  const initials = profile?.full_name
-    ? profile.full_name
+  const initials = profile?.name
+    ? profile.name
         .split(' ')
         .map((n) => n[0])
         .join('')
@@ -41,7 +41,7 @@ export function Header() {
           </Avatar>
           <div className="hidden md:block">
             <p className="text-sm font-medium text-slate-700">
-              {profile?.full_name || 'Usuário'}
+              {profile?.name || 'Usuário'}
             </p>
             <p className="text-xs text-slate-400 capitalize">{profile?.role}</p>
           </div>

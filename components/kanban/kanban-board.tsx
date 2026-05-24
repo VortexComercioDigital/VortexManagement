@@ -3,63 +3,33 @@
 import { useEffect, useCallback } from 'react';
 import {
   DndContext,
-  DragOverlay,
   closestCorners,
   PointerSensor,
   useSensor,
   useSensors,
-  type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
-import { supabase } from '@/lib/supabase';
 import { useKanbanStore } from '@/stores/kanban-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { useLeads, useStages, type LeadWithProfile } from '@/hooks/use-leads';
+import type { Stage } from '@/types/database';
 import { KanbanColumn } from './kanban-column';
-import { KanbanCard } from './kanban-card';
 import { KanbanFilters } from './kanban-filters';
 import { LeadDetailModal } from '@/components/leads/lead-detail-modal';
 import { NewLeadDialog } from '@/components/leads/new-lead-dialog';
-import type { Lead, KanbanStage } from '@/types/database';
+import { useToast } from '@/hooks/use-toast';
 
 export function KanbanBoard() {
-  const { stages, leads, setStages, setLeads, setSelectedLeadId, selectedLeadId } =
-    useKanbanStore();
+  const { selectedLeadId, setSelectedLeadId, getLeadsByStage } = useKanbanStore();
   const { profile } = useAuthStore();
+  const { leads, moveLead } = useLeads();
+  const { stages } = useStages();
+  const { toast } = useToast();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
-
-  const fetchStages = useCallback(async () => {
-    const { data } = await supabase
-      .from('kanban_stages')
-      .select('*')
-      .order('position');
-    if (data) setStages(data as KanbanStage[]);
-  }, [setStages]);
-
-  const fetchLeads = useCallback(async () => {
-    let query = supabase
-      .from('leads')
-      .select('*, kanban_stages(*), profiles!leads_vendedor_id_fkey(*)')
-      .order('created_at', { ascending: false });
-
-    if (profile?.role === 'vendedor') {
-      query = query.eq('vendedor_id', profile.id);
-    }
-    // admin and dev see all leads
-
-    const { data } = await query;
-    if (data) setLeads(data as unknown as Lead[]);
-  }, [setLeads, profile]);
-
-  useEffect(() => {
-    fetchStages();
-    fetchLeads();
-  }, [fetchStages, fetchLeads]);
-
-  const handleDragStart = () => {};
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
@@ -68,26 +38,30 @@ export function KanbanBoard() {
     const leadId = active.id as string;
     const newStageId = over.id as string;
 
-    const lead = leads.find((l) => l.id === leadId);
+    const lead = leads.find((l: LeadWithProfile) => l.id === leadId);
     if (!lead || lead.stage_id === newStageId) return;
 
-    setLeads(
-      leads.map((l) => (l.id === leadId ? { ...l, stage_id: newStageId } : l))
-    );
-
-    const { error } = await supabase
-      .from('leads')
-      .update({ stage_id: newStageId })
-      .eq('id', leadId);
-
-    if (error) {
-      setLeads(
-        leads.map((l) => (l.id === leadId ? { ...l, stage_id: lead.stage_id } : l))
-      );
+    try {
+      await moveLead.mutateAsync({ leadId, newStageId });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: error instanceof Error ? error.message : 'Erro ao mover lead',
+        variant: 'destructive',
+      });
     }
   };
 
-  const selectedLead = leads.find((l) => l.id === selectedLeadId);
+  // Convert leads to match kanban-store format for filtering
+  const kanbanLeads = leads.map((lead: LeadWithProfile) => ({
+    ...lead,
+    stage_id: lead.stage_id || '',
+    vendedor_id: lead.vendedor_id || '',
+  }));
+
+  const selectedLead = leads.find((l: LeadWithProfile) => l.id === selectedLeadId);
+
+  if (!profile) return null;
 
   return (
     <div className="flex flex-col h-[calc(100vh-10rem)]">
@@ -98,7 +72,7 @@ export function KanbanBoard() {
             Arraste os cards entre as colunas para atualizar o status
           </p>
         </div>
-        <NewLeadDialog onCreated={fetchLeads} />
+        <NewLeadDialog onCreated={() => {}} />
       </div>
 
       <KanbanFilters />
@@ -106,30 +80,32 @@ export function KanbanBoard() {
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
         <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
-          {stages.map((stage) => (
-            <SortableContext
-              key={stage.id}
-              items={leads
-                .filter((l) => l.stage_id === stage.id)
-                .map((l) => l.id)}
-              strategy={horizontalListSortingStrategy}
-            >
-              <KanbanColumn stage={stage} />
-            </SortableContext>
-          ))}
+          {stages.map((stage: Stage) => {
+            const stageLeads = kanbanLeads.filter((l: LeadWithProfile) => l.stage_id === stage.id);
+            return (
+              <SortableContext
+                key={stage.id}
+                items={stageLeads.map((l: LeadWithProfile) => l.id)}
+                strategy={horizontalListSortingStrategy}
+              >
+                <KanbanColumn stage={stage as any} />
+              </SortableContext>
+            );
+          })}
         </div>
       </DndContext>
 
       {selectedLead && (
         <LeadDetailModal
-          lead={selectedLead}
+          lead={selectedLead as any}
           open={!!selectedLeadId}
           onClose={() => setSelectedLeadId(null)}
-          onUpdate={fetchLeads}
+          onUpdate={() => {}}
+          userRole={profile.role}
+          userId={profile.id}
         />
       )}
     </div>

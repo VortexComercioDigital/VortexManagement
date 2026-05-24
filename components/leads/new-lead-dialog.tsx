@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,85 +18,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth-store';
+import type { Stage, Profile } from '@/types/database';
+import { useLeads, useStages, useVendedores } from '@/hooks/use-leads';
+import { useToast } from '@/hooks/use-toast';
 import { Plus } from 'lucide-react';
-import type { KanbanStage, Profile } from '@/types/database';
 
 interface NewLeadDialogProps {
   onCreated: () => void;
 }
 
 export function NewLeadDialog({ onCreated }: NewLeadDialogProps) {
-  const { profile } = useAuthStore();
+  const profile = useAuthStore((state) => state.profile);
   const [open, setOpen] = useState(false);
-  const [stages, setStages] = useState<KanbanStage[]>([]);
-  const [vendedores, setVendedores] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { stages } = useStages();
+  const { vendedores } = useVendedores();
+  const { createLead } = useLeads();
+  const { toast } = useToast();
 
-  const [name, setName] = useState('');
-  const [company, setCompany] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [stageId, setStageId] = useState('');
-  const [vendedorId, setVendedorId] = useState(profile?.id || '');
-  const [value, setValue] = useState('');
-  const [tags, setTags] = useState('');
-
-  useEffect(() => {
-    if (open) {
-      supabase
-        .from('kanban_stages')
-        .select('*')
-        .order('position')
-        .then(({ data }) => {
-          if (data) {
-            setStages(data as KanbanStage[]);
-            if (!stageId) setStageId(data[0]?.id || '');
-          }
-        });
-
-      if (profile?.role === 'admin' || profile?.role === 'dev') {
-        supabase
-          .from('profiles')
-          .select('*')
-          .order('full_name')
-          .then(({ data }) => {
-            if (data) setVendedores(data as Profile[]);
-          });
-      }
-    }
-  }, [open, profile, stageId]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
+    const formData = new FormData(e.currentTarget);
 
-    const { error } = await supabase.from('leads').insert({
-      name,
-      company,
-      email,
-      phone,
-      stage_id: stageId,
-      vendedor_id: vendedorId || profile?.id,
-      value: parseFloat(value) || 0,
-      tags: tags
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean),
-    });
-
-    setLoading(false);
-
-    if (!error) {
+    try {
+      await createLead.mutateAsync(formData);
+      toast({ title: 'Sucesso', description: 'Lead criado com sucesso' });
       setOpen(false);
-      setName('');
-      setCompany('');
-      setEmail('');
-      setPhone('');
-      setValue('');
-      setTags('');
       onCreated();
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: error instanceof Error ? error.message : 'Erro ao criar lead',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -115,35 +69,31 @@ export function NewLeadDialog({ onCreated }: NewLeadDialogProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label>Nome *</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} required />
+            <Input name="name" required disabled={createLead.isPending} />
           </div>
           <div className="space-y-2">
             <Label>Empresa</Label>
-            <Input value={company} onChange={(e) => setCompany(e.target.value)} />
+            <Input name="company" disabled={createLead.isPending} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>E-mail</Label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+              <Input name="email" type="email" disabled={createLead.isPending} />
             </div>
             <div className="space-y-2">
               <Label>Telefone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Input name="phone" disabled={createLead.isPending} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Etapa</Label>
-              <Select value={stageId} onValueChange={setStageId}>
+              <Select name="stageId" disabled={createLead.isPending}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar" />
                 </SelectTrigger>
                 <SelectContent>
-                  {stages.map((s) => (
+                  {stages.map((s: Stage) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
                     </SelectItem>
@@ -153,24 +103,20 @@ export function NewLeadDialog({ onCreated }: NewLeadDialogProps) {
             </div>
             <div className="space-y-2">
               <Label>Valor (R$)</Label>
-              <Input
-                type="number"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-              />
+              <Input name="value" type="number" disabled={createLead.isPending} />
             </div>
           </div>
-          {(profile?.role === 'admin' || profile?.role === 'dev') && vendedores.length > 0 && (
+          {profile?.role === 'admin' && vendedores.length > 0 && (
             <div className="space-y-2">
               <Label>Vendedor</Label>
-              <Select value={vendedorId} onValueChange={setVendedorId}>
+              <Select name="vendedorId" disabled={createLead.isPending}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar" />
                 </SelectTrigger>
                 <SelectContent>
-                  {vendedores.map((v) => (
+                  {vendedores.map((v: Profile) => (
                     <SelectItem key={v.id} value={v.id}>
-                      {v.full_name || 'Sem nome'}
+                      {v.name || 'Sem nome'}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -180,13 +126,13 @@ export function NewLeadDialog({ onCreated }: NewLeadDialogProps) {
           <div className="space-y-2">
             <Label>Tags (separadas por vírgula)</Label>
             <Input
+              name="tags"
               placeholder="ex: site, urgente, vip"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
+              disabled={createLead.isPending}
             />
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Criando...' : 'Criar Lead'}
+          <Button type="submit" className="w-full" disabled={createLead.isPending}>
+            {createLead.isPending ? 'Criando...' : 'Criar Lead'}
           </Button>
         </form>
       </DialogContent>

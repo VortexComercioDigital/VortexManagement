@@ -65,7 +65,7 @@ export default function DashboardPage() {
         ).data?.id ?? '')
         .gte('updated_at', firstDay);
 
-      const totalRevenue = (closedLeads || []).reduce((sum, l) => sum + (l.value || 0), 0);
+      const totalRevenue = (closedLeads || []).reduce((sum: number, l: { value: number }) => sum + (l.value || 0), 0);
       const conversionRate = totalLeads ? ((closedLeads?.length || 0) / totalLeads) * 100 : 0;
 
       const { count: activeDeals } = await supabase
@@ -142,7 +142,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">
-          Olá, {profile?.full_name || 'Usuário'}
+          Olá, {profile?.name || 'Usuário'}
         </h1>
         <p className="text-slate-500 mt-1">
           Aqui está um resumo do seu pipeline hoje.

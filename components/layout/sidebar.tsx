@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   KanbanSquare,
@@ -14,23 +15,63 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
+import type { Profile } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'vendedor', 'dev'] },
-  { href: '/kanban', label: 'Kanban', icon: KanbanSquare, roles: ['admin', 'vendedor', 'dev'] },
-  { href: '/leads', label: 'Clientes', icon: Users, roles: ['admin', 'vendedor', 'dev'] },
-  { href: '/servicos', label: 'Serviços', icon: Package, roles: ['admin', 'dev'] },
-  { href: '/configuracoes', label: 'Configurações', icon: Settings, roles: ['admin'] },
+  {
+    href: '/',
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    roles: ['admin', 'vendedor', 'dev'],
+  },
+  {
+    href: '/kanban',
+    label: 'Kanban',
+    icon: KanbanSquare,
+    roles: ['admin', 'vendedor', 'dev'],
+  },
+  {
+    href: '/leads',
+    label: 'Clientes',
+    icon: Users,
+    roles: ['admin', 'vendedor', 'dev'],
+  },
+  {
+    href: '/servicos',
+    label: 'Serviços',
+    icon: Package,
+    roles: ['admin', 'dev'],
+  },
+  {
+    href: '/configuracoes',
+    label: 'Configurações',
+    icon: Settings,
+    roles: ['admin'],
+  },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { profile, signOut } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await signOut();
+    router.push('/login');
+  };
 
   const filteredItems = profile
     ? navItems.filter((item) => item.roles.includes(profile.role))
@@ -89,7 +130,7 @@ export function Sidebar() {
           {profile && !collapsed && (
             <div className="px-3 py-2">
               <p className="text-sm font-medium text-slate-200 truncate">
-                {profile.full_name || 'Usuário'}
+                {profile.name || 'Usuário'}
               </p>
               <p className="text-xs text-slate-500 capitalize">{profile.role}</p>
             </div>
@@ -97,11 +138,12 @@ export function Sidebar() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={signOut}
+            onClick={handleLogout}
+            disabled={isLoggingOut}
             className="w-full justify-start gap-3 text-slate-400 hover:text-red-400 hover:bg-slate-800"
           >
             <LogOut className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>Sair</span>}
+            {!collapsed && <span>{isLoggingOut ? 'Saindo...' : 'Sair'}</span>}
           </Button>
           <Button
             variant="ghost"
@@ -109,7 +151,11 @@ export function Sidebar() {
             onClick={() => setCollapsed(!collapsed)}
             className="w-full justify-center text-slate-400 hover:text-white hover:bg-slate-800"
           >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
           </Button>
         </div>
       </aside>
