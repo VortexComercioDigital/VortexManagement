@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth-store';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,66 +28,89 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Shield, Users, Columns3 } from 'lucide-react';
-import type { Profile, KanbanStage } from '@/types/database';
+import { Plus, Pencil, Trash2, Users, Columns3 } from 'lucide-react';
+import { useStagesManager } from '@/hooks/use-stages';
+import { useToast } from '@/hooks/use-toast';
+import type { Profile, Stage } from '@/types/database';
 
 export default function ConfiguracoesPage() {
   const { profile } = useAuthStore();
   const [users, setUsers] = useState<Profile[]>([]);
-  const [stages, setStages] = useState<KanbanStage[]>([]);
   const [stageDialog, setStageDialog] = useState(false);
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
-  const [stageForm, setStageForm] = useState({ name: '', color: '#3b82f6', position: 0 });
-  const [loading, setLoading] = useState(false);
-
-  const fetchUsers = async () => {
-    const { data } = await supabase.from('profiles').select('*').order('full_name');
-    if (data) setUsers(data as Profile[]);
-  };
-
-  const fetchStages = async () => {
-    const { data } = await supabase.from('kanban_stages').select('*').order('position');
-    if (data) setStages(data as KanbanStage[]);
-  };
+  const [stageForm, setStageForm] = useState({
+    name: '',
+    color: '#3b82f6',
+    order: 0,
+  });
+  const { stages, createStage, updateStage, deleteStage } = useStagesManager();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (profile?.role === 'admin') {
-      fetchUsers();
-      fetchStages();
+      supabase
+        .from('profiles')
+        .select('*')
+        .order('name')
+        .then(({ data }) => {
+          if (data) setUsers(data as Profile[]);
+        });
     }
   }, [profile]);
 
   const handleStageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
-    if (editingStageId) {
-      await supabase
-        .from('kanban_stages')
-        .update(stageForm)
-        .eq('id', editingStageId);
-    } else {
-      await supabase.from('kanban_stages').insert(stageForm);
+    const formData = new FormData();
+    formData.append('name', stageForm.name);
+    formData.append('color', stageForm.color);
+    formData.append('order', stageForm.order.toString());
+
+    try {
+      if (editingStageId) {
+        await updateStage.mutateAsync({ id: editingStageId, data: formData });
+        toast({ title: 'Sucesso', description: 'Etapa atualizada' });
+      } else {
+        await createStage.mutateAsync(formData);
+        toast({ title: 'Sucesso', description: 'Etapa criada' });
+      }
+      setStageDialog(false);
+      setEditingStageId(null);
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: error instanceof Error ? error.message : 'Erro ao salvar etapa',
+        variant: 'destructive',
+      });
     }
-
-    setLoading(false);
-    setStageDialog(false);
-    setEditingStageId(null);
-    fetchStages();
   };
 
-  const handleDeleteStage = async (id: string) => {
-    await supabase.from('kanban_stages').delete().eq('id', id);
-    fetchStages();
+  const handleDeleteStage = async (stageId: string) => {
+    try {
+      await deleteStage.mutateAsync(stageId);
+      toast({ title: 'Sucesso', description: 'Etapa removida' });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: error instanceof Error ? error.message : 'Erro ao remover etapa',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleEditStage = (stage: KanbanStage) => {
+  const handleEditStage = (stage: Stage) => {
     setEditingStageId(stage.id);
-    setStageForm({ name: stage.name, color: stage.color, position: stage.position });
+    setStageForm({
+      name: stage.name || '',
+      color: stage.color || '#3b82f6',
+      order: stage.order || 0,
+    });
     setStageDialog(true);
   };
 
-  if (profile?.role !== 'admin') {
+  if (!profile) return null;
+
+  if (profile.role !== 'admin') {
     return (
       <div className="flex items-center justify-center h-64 text-slate-400">
         <p>Acesso restrito a administradores</p>
@@ -93,7 +122,9 @@ export default function ConfiguracoesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Configurações</h1>
-        <p className="text-sm text-slate-500">Gerencie usuários e etapas do pipeline</p>
+        <p className="text-sm text-slate-500">
+          Gerencie usuários e etapas do pipeline
+        </p>
       </div>
 
       <Card>
@@ -102,7 +133,9 @@ export default function ConfiguracoesPage() {
             <Users className="h-5 w-5 text-slate-600" />
             <CardTitle className="text-lg">Usuários</CardTitle>
           </div>
-          <CardDescription>Lista de usuários do sistema e seus perfis</CardDescription>
+          <CardDescription>
+            Lista de usuários do sistema e seus perfis
+          </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -118,7 +151,7 @@ export default function ConfiguracoesPage() {
               {users.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">
-                    {user.full_name || 'Sem nome'}
+                    {user.name || 'Sem nome'}
                   </TableCell>
                   <TableCell className="text-xs text-slate-400 font-mono">
                     {user.id.slice(0, 8)}...
@@ -157,7 +190,11 @@ export default function ConfiguracoesPage() {
               size="sm"
               onClick={() => {
                 setEditingStageId(null);
-                setStageForm({ name: '', color: '#3b82f6', position: stages.length + 1 });
+                setStageForm({
+                  name: '',
+                  color: '#3b82f6',
+                  order: stages.length + 1,
+                });
                 setStageDialog(true);
               }}
             >
@@ -165,9 +202,7 @@ export default function ConfiguracoesPage() {
               Nova Etapa
             </Button>
           </div>
-          <CardDescription>
-            Configure as colunas do Kanban
-          </CardDescription>
+          <CardDescription>Configure as colunas do Kanban</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -175,21 +210,21 @@ export default function ConfiguracoesPage() {
               <TableRow>
                 <TableHead>Cor</TableHead>
                 <TableHead>Nome</TableHead>
-                <TableHead>Posição</TableHead>
+                <TableHead>Ordem</TableHead>
                 <TableHead className="w-[100px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {stages.map((stage) => (
+              {stages.map((stage: Stage) => (
                 <TableRow key={stage.id}>
                   <TableCell>
                     <div
                       className="w-6 h-6 rounded-full border border-slate-200"
-                      style={{ backgroundColor: stage.color }}
+                      style={{ backgroundColor: stage.color || '#3b82f6' }}
                     />
                   </TableCell>
                   <TableCell className="font-medium">{stage.name}</TableCell>
-                  <TableCell>{stage.position}</TableCell>
+                  <TableCell>{stage.order}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Button
@@ -197,6 +232,7 @@ export default function ConfiguracoesPage() {
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => handleEditStage(stage)}
+                        disabled={updateStage.isPending}
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -205,6 +241,7 @@ export default function ConfiguracoesPage() {
                         size="icon"
                         className="h-8 w-8 text-red-500 hover:text-red-600"
                         onClick={() => handleDeleteStage(stage.id)}
+                        disabled={deleteStage.isPending}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -229,8 +266,11 @@ export default function ConfiguracoesPage() {
               <Label>Nome</Label>
               <Input
                 value={stageForm.name}
-                onChange={(e) => setStageForm({ ...stageForm, name: e.target.value })}
+                onChange={(e) =>
+                  setStageForm({ ...stageForm, name: e.target.value })
+                }
                 required
+                disabled={createStage.isPending || updateStage.isPending}
               />
             </div>
             <div className="space-y-2">
@@ -239,28 +279,46 @@ export default function ConfiguracoesPage() {
                 <Input
                   type="color"
                   value={stageForm.color}
-                  onChange={(e) => setStageForm({ ...stageForm, color: e.target.value })}
+                  onChange={(e) =>
+                    setStageForm({ ...stageForm, color: e.target.value })
+                  }
                   className="w-12 h-9 p-1 cursor-pointer"
+                  disabled={createStage.isPending || updateStage.isPending}
                 />
                 <Input
                   value={stageForm.color}
-                  onChange={(e) => setStageForm({ ...stageForm, color: e.target.value })}
+                  onChange={(e) =>
+                    setStageForm({ ...stageForm, color: e.target.value })
+                  }
                   className="flex-1"
+                  disabled={createStage.isPending || updateStage.isPending}
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Posição</Label>
+              <Label>Ordem</Label>
               <Input
                 type="number"
-                value={stageForm.position}
+                value={stageForm.order}
                 onChange={(e) =>
-                  setStageForm({ ...stageForm, position: parseInt(e.target.value) || 0 })
+                  setStageForm({
+                    ...stageForm,
+                    order: parseInt(e.target.value) || 0,
+                  })
                 }
+                disabled={createStage.isPending || updateStage.isPending}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Salvando...' : editingStageId ? 'Salvar' : 'Criar Etapa'}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={createStage.isPending || updateStage.isPending}
+            >
+              {createStage.isPending || updateStage.isPending
+                ? 'Salvando...'
+                : editingStageId
+                ? 'Salvar'
+                : 'Criar Etapa'}
             </Button>
           </form>
         </DialogContent>

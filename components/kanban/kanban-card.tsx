@@ -41,9 +41,9 @@ export function KanbanCard({ lead }: KanbanCardProps) {
     >
       <div className="flex items-start justify-between gap-2">
         <h4 className="font-semibold text-sm text-slate-900 leading-tight">
-          {lead.name}
+          {lead.name || 'Sem nome'}
         </h4>
-        {lead.value > 0 && (
+        {lead.value && lead.value > 0 && (
           <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
             R$ {lead.value.toLocaleString('pt-BR')}
           </span>
@@ -81,11 +81,11 @@ export function KanbanCard({ lead }: KanbanCardProps) {
         </div>
       )}
 
-      {lead.vendedor && (
+      {lead.profiles && (
         <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-100">
           <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center">
             <span className="text-[9px] font-bold text-slate-500">
-              {lead.vendedor.full_name
+              {lead.profiles.name
                 ?.split(' ')
                 .map((n) => n[0])
                 .join('')
@@ -94,7 +94,7 @@ export function KanbanCard({ lead }: KanbanCardProps) {
             </span>
           </div>
           <span className="text-[10px] text-slate-400 truncate">
-            {lead.vendedor.full_name}
+            {lead.profiles.name}
           </span>
         </div>
       )}

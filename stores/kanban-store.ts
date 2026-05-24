@@ -1,10 +1,10 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Lead, KanbanStage } from '@/types/database';
+import type { Lead, Stage } from '@/types/database';
 
 interface KanbanState {
-  stages: KanbanStage[];
+  stages: Stage[];
   leads: Lead[];
   selectedLeadId: string | null;
   filters: {
@@ -12,7 +12,7 @@ interface KanbanState {
     vendedorId: string | null;
     tag: string | null;
   };
-  setStages: (stages: KanbanStage[]) => void;
+  setStages: (stages: Stage[]) => void;
   setLeads: (leads: Lead[]) => void;
   setSelectedLeadId: (id: string | null) => void;
   setFilters: (filters: Partial<KanbanState['filters']>) => void;
@@ -40,15 +40,15 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
       if (filters.search) {
         const s = filters.search.toLowerCase();
         if (
-          !lead.name.toLowerCase().includes(s) &&
-          !lead.company.toLowerCase().includes(s) &&
-          !lead.email.toLowerCase().includes(s)
+          !(lead.name && lead.name.toLowerCase().includes(s)) &&
+          !(lead.company && lead.company.toLowerCase().includes(s)) &&
+          !(lead.email && lead.email.toLowerCase().includes(s))
         )
           return false;
       }
       if (filters.vendedorId && lead.vendedor_id !== filters.vendedorId)
         return false;
-      if (filters.tag && !lead.tags.includes(filters.tag)) return false;
+      if (filters.tag && lead.tags && !lead.tags.includes(filters.tag)) return false;
       return true;
     });
   },

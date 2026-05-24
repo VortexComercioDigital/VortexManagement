@@ -27,9 +27,9 @@ export function KanbanFilters() {
       supabase
         .from('profiles')
         .select('*')
-        .order('full_name')
+        .order('name')
         .then(({ data }) => {
-          if (data) setVendedores(data as Profile[]);
+          if (data) setVendedores(data);
         });
     }
   }, [profile]);
@@ -62,7 +62,7 @@ export function KanbanFilters() {
             <SelectItem value="all">Todos vendedores</SelectItem>
             {vendedores.map((v) => (
               <SelectItem key={v.id} value={v.id}>
-                {v.full_name || 'Sem nome'}
+                {v.name || 'Sem nome'}
               </SelectItem>
             ))}
           </SelectContent>
