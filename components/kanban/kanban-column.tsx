@@ -4,10 +4,10 @@ import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useKanbanStore } from '@/stores/kanban-store';
 import { KanbanCard } from './kanban-card';
-import type { KanbanStage } from '@/types/database';
+import type { Stage } from '@/types/database';
 
 interface KanbanColumnProps {
-  stage: KanbanStage;
+  stage: Stage;
 }
 
 export function KanbanColumn({ stage }: KanbanColumnProps) {
@@ -26,9 +26,9 @@ export function KanbanColumn({ stage }: KanbanColumnProps) {
       <div className="flex items-center gap-2 px-3 py-3">
         <div
           className="w-2.5 h-2.5 rounded-full"
-          style={{ backgroundColor: stage.color }}
+          style={{ backgroundColor: stage.color || '#3b82f6' }}
         />
-        <h3 className="font-semibold text-sm text-slate-700">{stage.name}</h3>
+        <h3 className="font-semibold text-sm text-slate-700">{stage.name || 'Sem nome'}</h3>
         <span className="ml-auto text-xs font-medium text-slate-400 bg-white px-2 py-0.5 rounded-full">
           {leads.length}
         </span>
